@@ -4,7 +4,7 @@ from Cython.Distutils import build_ext
 import numpy
 
 ext_modules=[ Extension("fastmodules",
-              ["revolver/c/fastmodules.pyx"],
+              ["revolver/fastmodules.pyx"],
               libraries=["m"],
               extra_compile_args = ["-ffast-math"],
               include_dirs=[numpy.get_include()])]

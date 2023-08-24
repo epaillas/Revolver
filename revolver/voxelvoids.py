@@ -1,6 +1,7 @@
 import subprocess
 import numpy as np
 from pyrecon import RealMesh
+import revolver.fastmodules as fastmodules
 from pandas import qcut
 import sys
 import os
@@ -97,10 +98,10 @@ class VoxelVoids:
         hierarchy = np.asarray(hierarchy, dtype=str)
 
         # remove voids that: a) don't meet minimum density cut, b) are edge voids, or c) lie in a masked voxel
-        # select = np.zeros(rawdata.shape[0], dtype='int')
-        # fastmodules.voxelvoid_cuts(select, self.mask_cut, rawdata, self.min_dens_cut)
-        # select = np.asarray(select, dtype=bool)
-        # rawdata = rawdata[select]
+        select = np.zeros(rawdata.shape[0], dtype='int')
+        fastmodules.voxelvoid_cuts(select, self.mask_cut, rawdata, self.min_dens_cut)
+        select = np.asarray(select, dtype=bool)
+        rawdata = rawdata[select]
         # densratio = densratio[select]
         # hierarchy = hierarchy[select]
 

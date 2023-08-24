@@ -6,11 +6,11 @@ all: fastmodules
 .PHONY : fastmodules
 
 fastmodules:
-	python revolver/c/setup.py build_ext --inplace
-	mv fastmodules*.so revolver/c/.
+	python revolver/setup.py build_ext --inplace
+	mv fastmodules*.so revolver/.
 
 clean:
-	rm -f revolver/c/*.*o
-	rm -f revolver/c/fastmodules.c
-	rm -f revolver/c/fastmodules*.so
-	rm -f revolver/c/*.pyc
+	rm -f revolver/*.*o
+	rm -f revolver/fastmodules.c
+	rm -f revolver/fastmodules*.so
+	rm -f revolver/*.pyc
