@@ -80,7 +80,6 @@ class VoxelVoids:
         subprocess.call(cmd)
 
 
-
     def postprocess_voids(self):
 
         print("Post-processing voids")
@@ -90,15 +89,6 @@ class VoxelVoids:
         raw_dir = './'
         rawdata = np.loadtxt("tmp.txt", skiprows=2)
         nvox = self.nbins ** 3
-
-        # load the void hierarchy data to record void leak density ratio, even though this is
-        # possibly not useful for anything at all
-        voidfile = "tmp.void"
-        with open(voidfile, 'r') as F:
-            hierarchy = F.readlines()
-        densratio = np.zeros(len(rawdata))
-        for i in range(len(rawdata)):
-            densratio[i] = np.fromstring(hierarchy[i + 1], dtype=float, sep=' ')[2]
 
         # load zone membership data
         zonefile = "tmp.zone"

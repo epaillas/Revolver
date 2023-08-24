@@ -2,7 +2,7 @@ import fitsio
 from pathlib import Path
 import numpy as np
 from revolver import VoxelVoids
-from pycorr import TwoPointCorrelationFunction
+from pycorr import TwoPointCorrelationFunction, setup_logging
 import matplotlib.pyplot as plt
 
 
@@ -48,6 +48,7 @@ voids_positions, voids_radii = get_voids_positions(
 )
 
 # Compute void-galaxy correlation function
+setup_logging()
 redges = np.hstack([np.arange(0, 5, 1),
                     np.arange(7, 30, 3),
                     np.arange(31, 155, 5)])
@@ -60,7 +61,6 @@ result = TwoPointCorrelationFunction(
     nthreads=4, compute_sepsavg=False, position_type='pos', los='z',
 )
 s, multipoles = result(ells=(0, 2, 4), return_sep=True)
-
 
 # Plot void-galaxy correlation function monopole
 fig, ax = plt.subplots()
