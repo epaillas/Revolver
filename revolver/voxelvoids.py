@@ -2,7 +2,7 @@ import subprocess
 import numpy as np
 from pyrecon import RealMesh
 import revolver.fastmodules as fastmodules
-from pandas import qcut
+import logging
 import sys
 import os
 
@@ -10,7 +10,7 @@ import os
 class VoxelVoids:
     def __init__(self, data_positions, boxsize=None, boxcenter=None,
         data_weights=None, randoms_positions=None, randoms_weights=None,
-        cellsize=None, wrap=False, boxpad=1.5, nthreads=None):
+        cellsize=None, wrap=False, boxpad=1.5,):
         self.data_positions = data_positions
         self.randoms_positions = randoms_positions
         self.boxsize = boxsize
@@ -18,7 +18,8 @@ class VoxelVoids:
         self.cellsize = cellsize
         self.boxpad = boxpad
         self.wrap = wrap
-        self.nthreads = nthreads
+
+        self.logger = logging.getLogger('VoxelVoids')
 
         if data_weights is not None:
             self.data_weights = data_weights
@@ -35,16 +36,17 @@ class VoxelVoids:
                 self.randoms_weights = randoms_weights
 
 
-    def set_density_contrast(self, smoothing_radius, check=False, ran_min=0.01):
+    def set_density_contrast(self, smoothing_radius, check=False, ran_min=0.01, nthreads=1):
+        self.logger.info('Setting density contrast')
         self.data_mesh = RealMesh(boxsize=self.boxsize, cellsize=self.cellsize,
-                                  boxcenter=self.boxcenter, nthreads=self.nthreads,
+                                  boxcenter=self.boxcenter, nthreads=nthreads,
                                   positions=self.randoms_positions, boxpad=self.boxpad)
         self.data_mesh.assign_cic(positions=self.data_positions, wrap=self.wrap,
                                   weights=self.data_weights)
         self.data_mesh.smooth_gaussian(smoothing_radius, engine='fftw', save_wisdom=True,)
         if self.boxsize is None:
             self.randoms_mesh = RealMesh(boxsize=self.boxsize, cellsize=self.cellsize,
-                                         boxcenter=self.boxcenter, nthreads=self.nthreads,
+                                         boxcenter=self.boxcenter, nthreads=nthreads,
                                          positions=self.randoms_positions, boxpad=self.boxpad)
             self.randoms_mesh.assign_cic(positions=self.randoms_positions, wrap=self.wrap,
                                          weights=self.randoms_weights)
@@ -68,6 +70,7 @@ class VoxelVoids:
         return self.delta_mesh
 
     def find_voids(self):
+        self.logger.info("Finding voids")
         self.nbins = int(self.boxsize / self.cellsize)
         # write this to file for jozov-grid to read
         delta_mesh_flat = np.array(self.delta_mesh, dtype=np.float32)
@@ -75,7 +78,7 @@ class VoxelVoids:
             delta_mesh_flat.tofile(F, format='%f')
 
         # now call jozov-grid
-        bin_path  = os.path.join(os.path.dirname(__file__), 'c', 'jozov-grid')
+        bin_path  = os.path.join(os.path.dirname(__file__), 'c', 'jozov-grid.exe')
         cmd = [bin_path, "v", f"delta_mesh_n{self.nbins}d.dat",
                './tmp', str(self.nbins)]
         subprocess.call(cmd)
@@ -83,7 +86,7 @@ class VoxelVoids:
 
     def postprocess_voids(self):
 
-        print("Post-processing voids")
+        self.logger.info("Post-processing voids")
         self.mask_cut = np.zeros(self.nbins**3, dtype='int')  # we don't mask any voxels in a box
         self.min_dens_cut = 1.0
 
@@ -139,6 +142,7 @@ class VoxelVoids:
         os.remove('tmp.txt')
         os.remove('tmp.zone')
         os.remove(f'delta_mesh_n{self.nbins}d.dat')
+        self.logger.info(f"Found a total of {len(rawdata)} voids")
         return np.c_[xpos, ypos, zpos], rads
         # void average densities and barycentres
         # avgdens = np.zeros(len(rawdata))

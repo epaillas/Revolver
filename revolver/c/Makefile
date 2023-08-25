@@ -1,21 +1,19 @@
 # Compiler choice:
 CC    = gcc
 MPICC = mpicc
-CFLAGS = -O2 -g -ansi -Wno-unused-result
-MPICFLAGS = -O2 -g -ansi
+CFLAGS = -O2 -g -ansi -Wno-unused-result -std=c99
+MPICFLAGS = -O2 -g -ansi -std=c99
 
 MLIBS	=   -lm
 
-EXES = jozov-grid
+EXES = jozov-grid.exe
 
-jozov-grid: jozov-grid.o
-	$(CC) $(CFLAGS) -o jozov-grid jozov-grid.o $(MLIBS)
+jozov-grid.exe: jozov-grid.o
+	$(CC) $(CFLAGS) -o jozov-grid.exe jozov-grid.o $(MLIBS)
 
 all: $(EXES)
-	mv $(EXES) ../bin
 
 install: $(EXES)
-	mv $(EXES) ../bin
 
 .c.o:
 	$(CC) -c -o $@ $(CFLAGS) $(QINC) $*.c

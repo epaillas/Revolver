@@ -1,9 +1,12 @@
 # compiler choice
 CC    = gcc
 
-all: fastmodules
+all: fastmodules c
 
 .PHONY : fastmodules
+
+c:
+	make -C revolver/c all
 
 fastmodules:
 	python revolver/setup.py build_ext --inplace
@@ -14,3 +17,5 @@ clean:
 	rm -f revolver/fastmodules.c
 	rm -f revolver/fastmodules*.so
 	rm -f revolver/*.pyc
+	rm -f revolver/c/*.o
+	rm -f revolver/c/*.exe

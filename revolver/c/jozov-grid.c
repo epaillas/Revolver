@@ -86,11 +86,11 @@ int main(int argc,char **argv) {
   }
   obo = tolower(obo);
   if (obo == 'v'){
-    printf("Finding density minima\n");
+    // printf("Finding density minima\n");
     borderdens = 0.9e30;
   }
   else if (obo == 'c'){
-    printf("\nFinding density maxima\n");
+    // printf("\nFinding density maxima\n");
     borderdens = 0.9e30;
   }
   else{
@@ -104,7 +104,7 @@ int main(int argc,char **argv) {
     exit(0);
   }
   Nvox = Nside*Nside*Nside;	/* the total number of voxels (grid cells) */
-  printf("Total number of voxels: %ld\n",Nvox);
+  // printf("Total number of voxels: %ld\n",Nvox);
 
   if (obo == 'v'){
     sprintf(zonefile,"%s.zone",prefix);
@@ -118,7 +118,7 @@ int main(int argc,char **argv) {
   }
 
   /* Read the density data from file */
-  printf("Reading in the dens data from file ...\n"); FF;
+  // printf("Reading in the dens data from file ...\n"); FF;
   p = (VOXEL *)malloc(Nvox*sizeof(VOXEL));
   dens = fopen(densfile, "r");
   if (dens == NULL) {
@@ -134,7 +134,7 @@ int main(int argc,char **argv) {
   /* printf("Debug: dens[0] = %0.4e, dens[%ld] = %0.4e\n",p[0].dens,Nvox-1,p[Nvox-1].dens); */
 
   /* Set the adjacencies */
-  printf("Setting the voxel adjacencies ...\n"); FF;
+  // printf("Setting the voxel adjacencies ...\n"); FF;
   for (i=0;i<Nvox;i++) {
     if (p[i].dens < borderdens) {
       /* convert central voxel index to 3D */
@@ -186,7 +186,7 @@ int main(int argc,char **argv) {
   numinh = (long *)malloc(Nvox*sizeof(long));
 
   /* find jumper - every voxel jumps to its lowest neighbour */
-  printf("Finding jumper for each voxel\n"); FF;
+  // printf("Finding jumper for each voxel\n"); FF;
   for (i = 0; i < Nvox; i++) {
     mindens = p[i].dens; jumper[i] = -1;
     for (j=0; j<p[i].nadj; j++) {
@@ -198,7 +198,7 @@ int main(int argc,char **argv) {
     numinh[i] = 0;
   }
 
-  printf("About to jump ...\n"); FF;
+  // printf("About to jump ...\n"); FF;
 
   /* Jump along the chain */
   for (i = 0; i < Nvox; i++) {
@@ -209,7 +209,7 @@ int main(int argc,char **argv) {
       numinh[jumped[i]]++;	/* only count voxels not flagged as border voxels */
     }
   }
-  printf("Post-jump ...\n"); FF;
+  // printf("Post-jump ...\n"); FF;
 
   /* count the number of zones */
   nzones = 0; nrealzones = 0;
@@ -218,7 +218,7 @@ int main(int argc,char **argv) {
       nzones++;
       /* if (p[i].dens < borderdens) nrealzones++; */
     }
-  printf("%d zones found...\n",nzones);
+  // printf("%d zones found...\n",nzones);
 
   /* allocate the zone variables */
   z = (ZONE *)malloc(nzones*sizeof(ZONE));
@@ -254,7 +254,7 @@ int main(int argc,char **argv) {
     }
 
   /* Finding particles on zone borders */
-  printf("Finding zone borders\n");
+  // printf("Finding zone borders\n");
   for (i = 0; i < Nvox; i++)
     for (j = 0; j < p[i].nadj; j++) {
       testpart = p[i].adj[j];
@@ -266,7 +266,7 @@ int main(int argc,char **argv) {
 	    }
     }
 
-  printf("Allocating zone adjacencies and links\n");
+  // printf("Allocating zone adjacencies and links\n");
   for (h=0;h<nzones;h++) {
     zt[h].adj = (int *)malloc(zt[h].nadj*sizeof(int));
     if (zt[h].adj == NULL) {
@@ -282,7 +282,7 @@ int main(int argc,char **argv) {
   }
 
   /* Find "weakest links" - i.e. the lowest-density link */
-  printf("Finding weakest links\n");
+  // printf("Finding weakest links\n");
   for (i = 0; i < Nvox; i++) {
     h = zonenum[jumped[i]];
     for (j = 0; j < p[i].nadj; j++) {
@@ -321,7 +321,7 @@ int main(int argc,char **argv) {
       }
     }
   }
-  printf("Found zone adjacencies\n"); FF;
+  // printf("Found zone adjacencies\n"); FF;
 
   /* Free voxel adjacencies */
   for (i=0;i<Nvox; i++) free(p[i].adj);
@@ -365,7 +365,7 @@ int main(int argc,char **argv) {
     if ((p[i].dens > maxdens) && (p[i].dens < borderdens)) maxdens = p[i].dens;
     if ((p[i].dens < mindens) && (p[i].dens > 1./borderdens)) mindens = p[i].dens;
   }
-  printf("delta ranges from %e to %e.\n",mindens-1,maxdens-1); FF;
+  // printf("delta ranges from %e to %e.\n",mindens-1,maxdens-1); FF;
 
 
   /* Write the zone merger information to voidfile */
@@ -548,7 +548,7 @@ int main(int argc,char **argv) {
     }
   }
   /* Record which voxel membership for each zone */
-  printf("Writing the zone memberships\n"); FF;
+  // printf("Writing the zone memberships\n"); FF;
   zon = fopen(zonefile,"w");
   if (zon == NULL) {
     printf("Problem opening zonefile %s.\n\n",zonefile);

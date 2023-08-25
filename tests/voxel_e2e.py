@@ -1,8 +1,8 @@
 import fitsio
 from pathlib import Path
 import numpy as np
-from revolver import VoxelVoids
-from pycorr import TwoPointCorrelationFunction, setup_logging
+from revolver import VoxelVoids, setup_logging
+from pycorr import TwoPointCorrelationFunction
 import matplotlib.pyplot as plt
 
 
@@ -32,6 +32,9 @@ def get_voids_positions(data_positions, boxsize, cellsize, boxcenter=None,
         return voids_positions, voids_radii
     return voids_positions
 
+
+setup_logging()
+
 # Load some mock data. These are HOD galaxies on a 1.5 Gpc/h box
 data_fn = 'mock_data.fits'
 data_positions = get_data_positions(data_fn)
@@ -48,7 +51,6 @@ voids_positions, voids_radii = get_voids_positions(
 )
 
 # Compute void-galaxy correlation function
-setup_logging()
 redges = np.hstack([np.arange(0, 5, 1),
                     np.arange(7, 30, 3),
                     np.arange(31, 155, 5)])
@@ -72,7 +74,7 @@ plt.show()
 
 # Plot distribution of void radii
 fig, ax = plt.subplots()
-ax.hist(voids_radii, bins=20)
+ax.hist(voids_radii, bins=40)
 ax.set_xlabel('void radius [Mpc/h]')
 ax.set_ylabel('number counts')
 plt.show()
