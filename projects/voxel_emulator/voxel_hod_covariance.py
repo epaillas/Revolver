@@ -10,7 +10,9 @@ from astropy.io import fits
 from astropy.io.fits import Header
 import argparse
 import yaml
+import os
 import matplotlib.pyplot as plt
+import logging
 
 
 def get_rsd_positions(hod_dict):
@@ -131,6 +133,7 @@ def get_voids_positions(data_positions, boxsize, cellsize, boxcenter=None, handl
     return voids_positions
 
 if __name__ == '__main__':
+    logger = logging.getLogger('voxel_hod_covariance')
     setup_logging()
 
     parser = argparse.ArgumentParser()
@@ -138,7 +141,7 @@ if __name__ == '__main__':
     parser.add_argument("--n_hod", type=int, default=1)
     parser.add_argument("--start_cosmo", type=int, default=0)
     parser.add_argument("--n_cosmo", type=int, default=1)
-    parser.add_argument("--start_phase", type=int, default=0)
+    parser.add_argument("--start_phase", type=int, default=3000)
     parser.add_argument("--n_phase", type=int, default=1)
     parser.add_argument("--nthreads", type=int, default=1)
     parser.add_argument("--save_voids", action='store_true')
@@ -153,7 +156,7 @@ if __name__ == '__main__':
     n_phase = args.n_phase
 
     setup_logging(level='INFO')
-    boxsize = 2000
+    boxsize = 500
     cellsize = 5.0
     smoothing_radius = 10
     redshift = 0.5
@@ -164,7 +167,7 @@ if __name__ == '__main__':
     # HOD configuration
     dataset = 'voidprior'
     config_dir = './'
-    config_fn = Path(config_dir, f'hod_config_{dataset}.yaml')
+    config_fn = Path(config_dir, f'hod_config_{dataset}_covariance.yaml')
     config = yaml.safe_load(open(config_fn))
 
     # baseline AbacusSummit cosmology as our fiducial
@@ -189,23 +192,25 @@ if __name__ == '__main__':
         hod_params = np.genfromtxt(hods_fn, skip_header=1, delimiter=',')
 
         for phase in range(start_phase, start_phase + n_phase):
-            sim_fn = f'AbacusSummit_base_c{cosmo:03}_ph{phase:03}'
+            sim_fn = f'AbacusSummit_small_c{cosmo:03}_ph{phase:03}'
             config['sim_params']['sim_name'] = sim_fn
-            newBall, param_mapping, param_tracer, data_params = setup_hod(config)
+            try:
+                newBall, param_mapping, param_tracer, data_params = setup_hod(config)
+            except:
+                logger.info(f'Skipping c{cosmo:03} as the simulation files are not present')
+                continue
 
             for hod in range(start_hod, start_hod + n_hod):
-                print(f'c{cosmo:03} ph{phase:03} hod{hod}')
-
                 hod_dict = get_hod(hod_params[hod], param_mapping, param_tracer,
                               data_params, newBall, args.nthreads)
 
                 if args.save_mocks:
-                    output_dir = Path(f'/pscratch/sd/e/epaillas/voxel_emulator/HOD/{dataset}/',
-                        f'AbacusSummit_base_c{cosmo:03}_ph{phase:03}/z0.500/')
+                    output_dir = Path(f'/pscratch/sd/e/epaillas/voxel_emulator/HOD/{dataset}/small/',
+                        f'AbacusSummit_small_c{cosmo:03}_ph{phase:03}/z0.500/')
                     Path(output_dir).mkdir(parents=True, exist_ok=True)
                     output_fn = Path(
                         output_dir,
-                        f'AbacusSummit_base_c{cosmo:03}_ph{phase:03}_hod{hod}.npy'
+                        f'AbacusSummit_small_c{cosmo:03}_ph{phase:03}_hod{hod}.npy'
                     )
                     output_mock(hod_dict, newBall, output_fn, 'LRG',)
 
@@ -243,8 +248,8 @@ if __name__ == '__main__':
                             'positions': voids_positions,
                             'radii': voids_radii
                         }
-                        output_dir = Path(f'/pscratch/sd/e/epaillas/voxel_emulator/voxel_voids/HOD/{dataset}/',
-                            f'AbacusSummit_base_c{cosmo:03}_ph{phase:03}/z0.500/')
+                        output_dir = Path(f'/pscratch/sd/e/epaillas/voxel_emulator/voxel_voids/HOD/{dataset}/small/',
+                            f'AbacusSummit_small_c{cosmo:03}_ph{phase:03}/z0.500/')
                         Path(output_dir).mkdir(parents=True, exist_ok=True)
                         output_fn = Path(
                             output_dir,
@@ -264,8 +269,8 @@ if __name__ == '__main__':
                         gpu=True,
                     )
 
-                    output_dir = Path(f'/pscratch/sd/e/epaillas/voxel_emulator/voxel_multipoles/HOD/{dataset}/',
-                        f'AbacusSummit_base_c{cosmo:03}_ph{phase:03}/z0.500/')
+                    output_dir = Path(f'/pscratch/sd/e/epaillas/voxel_emulator/voxel_multipoles/HOD/{dataset}/small/',
+                        f'AbacusSummit_small_c{cosmo:03}_ph{phase:03}/z0.500/')
                     Path(output_dir).mkdir(parents=True, exist_ok=True)
                     output_fn = Path(
                         output_dir,
