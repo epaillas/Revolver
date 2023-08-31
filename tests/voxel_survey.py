@@ -79,6 +79,10 @@ voids_positions, voids_radii = get_voids_positions(
     return_radii=True,
 )
 
+print(data_positions.min(), data_positions.max())
+print(randoms_positions.min(), randoms_positions.max())
+print(voids_positions.min(), voids_positions.max())
+
 # Compute void-galaxy correlation function
 redges = np.hstack([np.arange(0, 5, 1),
                     np.arange(7, 30, 3),
@@ -88,8 +92,8 @@ edges = (redges, muedges)
 
 result = TwoPointCorrelationFunction(
     mode='smu', edges=edges, data_positions1=voids_positions,
-    data_positions2=data_positions, estimator='davispeebles',
-    nthreads=4, compute_sepsavg=False, position_type='pos',
+    data_positions2=data_positions, randoms_positions2=randoms_positions,
+    estimator='davispeebles', nthreads=4, compute_sepsavg=False, position_type='pos',
 )
 s, multipoles = result(ells=(0, 2, 4), return_sep=True)
 

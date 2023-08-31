@@ -3,6 +3,7 @@ import numpy as np
 from pyrecon import RealMesh
 import revolver.fastmodules as fastmodules
 import logging
+import time
 import sys
 import os
 
@@ -38,8 +39,9 @@ class VoxelVoids:
         self.handle = 'tmp' if handle is None else handle
 
 
-    def set_density_contrast(self, smoothing_radius, check=False, ran_min=0.01, nthreads=1):
+    def set_density_contrast(self, smoothing_radius, check=False, ran_min=0.1, nthreads=1):
         self.logger.info('Setting density contrast')
+        self.time = time.time()
         if self.boxsize is None:
             # we do a first iteration to figure out the boxsize
             self.randoms_mesh = RealMesh(cellsize=self.cellsize, boxcenter=self.boxcenter, nthreads=nthreads,
@@ -83,7 +85,6 @@ class VoxelVoids:
 
     def find_voids(self):
         self.logger.info("Finding voids")
-        print(self.delta_mesh.boxsize, self.cellsize)
         self.nbins = int(self.delta_mesh.boxsize[0] / self.cellsize)
         # write this to file for jozov-grid to read
         delta_mesh_flat = np.array(self.delta_mesh, dtype=np.float32)
@@ -99,10 +100,10 @@ class VoxelVoids:
         self.logger.info("Post-processing voids")
 
         mask_cut = np.zeros(self.nbins**3, dtype='int')
-        # if self.boxsize is None:
-        #     # identify "empty" cells for later cuts on void catalogue
-        #     mask_cut = np.zeros(self.nbins**3, dtype='int')
-        #     fastmodules.survey_mask(mask_cut, self.randoms_mesh.value, self.ran_min)
+        if self.boxsize is None:
+            # identify "empty" cells for later cuts on void catalogue
+            mask_cut = np.zeros(self.nbins**3, dtype='int')
+            fastmodules.survey_mask(mask_cut, self.randoms_mesh.value, self.ran_min)
         self.mask_cut = mask_cut
         self.min_dens_cut = 1.0
 
@@ -110,19 +111,18 @@ class VoxelVoids:
         nvox = self.nbins ** 3
 
         # load zone membership data
-        with open(f"{self.handle}.zone", 'r') as F:
-            hierarchy = F.readlines()
-        hierarchy = np.asarray(hierarchy, dtype=str)
+        # with open(f"{self.handle}.zone", 'r') as F:
+        #     hierarchy = F.readlines()
+        # hierarchy = np.asarray(hierarchy, dtype=str)
 
         # remove voids that: a) don't meet minimum density cut, b) are edge voids, or c) lie in a masked voxel
-        # select = np.zeros(rawdata.shape[0], dtype='int')
-        # fastmodules.voxelvoid_cuts(select, self.mask_cut, rawdata, self.min_dens_cut)
-        # select = np.asarray(select, dtype=bool)
-        # rawdata = rawdata[select]
+        select = np.zeros(rawdata.shape[0], dtype='int')
+        fastmodules.voxelvoid_cuts(select, self.mask_cut, rawdata, self.min_dens_cut)
+        select = np.asarray(select, dtype=bool)
+        rawdata = rawdata[select]
 
         # void minimum density centre locations
         self.logger.info('Calculating void positions')
-        print(np.shape(rawdata[:, 2]))
         xpos, ypos, zpos = self.voxel_position(rawdata[:, 2])
 
         # void effective radii
@@ -137,7 +137,7 @@ class VoxelVoids:
         os.remove(f'{self.handle}.zone')
         os.remove(f'{self.handle}_delta_mesh_n{self.nbins}d.dat')
 
-        self.logger.info(f"Found a total of {len(rawdata)} voids")
+        self.logger.info(f"Found a total of {len(rawdata)} voids in {time.time() - self.time:.2f} s.")
         return np.c_[xpos, ypos, zpos], rads
 
     def voxel_position(self, voxel):
@@ -145,9 +145,13 @@ class VoxelVoids:
         yind = np.array((voxel - xind * self.nbins ** 2) / self.nbins, dtype=int)
         zind = np.array(voxel % self.nbins, dtype=int)
         if self.boxsize is None:
-            xpos = xind * self.delta_mesh.boxsize / self.nbins
-            ypos = yind * self.delta_mesh.boxsize / self.nbins
-            zpos = zind * self.delta_mesh.boxsize / self.nbins
+            xpos = xind * self.delta_mesh.boxsize[0] / self.nbins
+            ypos = yind * self.delta_mesh.boxsize[0] / self.nbins
+            zpos = zind * self.delta_mesh.boxsize[0] / self.nbins
+
+            xpos += self.delta_mesh.boxcenter[0] - self.delta_mesh.boxsize[0] / 2.
+            ypos += self.delta_mesh.boxcenter[1] - self.delta_mesh.boxsize[1] / 2.
+            zpos += self.delta_mesh.boxcenter[2] - self.delta_mesh.boxsize[2] / 2.
         else:
             xpos = xind * self.boxsize / self.nbins
             ypos = yind * self.boxsize / self.nbins

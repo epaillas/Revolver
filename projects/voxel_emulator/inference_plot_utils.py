@@ -126,7 +126,7 @@ def get_true_params(
 ):
     param_dict = dict(
         pd.read_csv(
-            f"/pscratch/sd/e/epaillas/sunbird/data/parameters/abacus/bossprior/AbacusSummit_c{str(cosmology).zfill(3)}.csv"
+            f"/pscratch/sd/e/epaillas/sunbird/data/parameters/abacus/voidprior/AbacusSummit_c{str(cosmology).zfill(3)}.csv"
         ).iloc[hod_idx]
     )
     if add_fsigma8:
