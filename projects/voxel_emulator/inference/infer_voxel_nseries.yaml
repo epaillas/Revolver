@@ -1,0 +1,125 @@
+slice_filters:
+    s: [0.7, 120.0]
+
+select_filters:
+    multipoles: [0, 2]
+
+statistics: ['voxel_voids',]
+data:
+    observation: 
+        class: 'NseriesCutsky'
+        args:
+            dataset: 'voidprior'
+        get_obs_args:
+            phase: 0
+    covariance:
+        class: 'Patchy'
+        dataset: 'voidprior'
+        add_emulator_error_test_set: true
+        add_predicted_uncertainty: false
+        add_simulation_error: true
+        emulator_data_class: 'Abacus'
+        volume_scaling: 1
+
+fixed_parameters: ['w0_fld', 'wa_fld', 'nrun', 'N_ur',] 
+# fixed_parameters:  ['nrun', 'N_ur', 'w0_fld', 'wa_fld', 'logM1', 'logM_cut', 'alpha', 'logsigma', 'kappa',]
+# fixed_parameters: []
+
+theory_model:
+    module: 'sunbird.summaries'
+    class: 'VoxelVoids'
+    args:
+        dataset: 'voidprior'
+        loss: 'mae'
+        path_to_models: '/pscratch/sd/e/epaillas/sunbird/trained_models/best'
+        flax: true
+
+inference:
+    output_dir: '/pscratch/sd/e/epaillas/sunbird/chains/'
+
+
+priors:
+    stats_module: 'numpyro.distributions'
+    omega_b:
+        distribution: 'Normal'
+        loc: 0.02268
+        scale: 0.00038
+        # low: 0.0207
+        # high: 0.0243
+    omega_cdm:
+        distribution: 'Uniform'
+        low: 0.1032
+        high: 0.140
+
+    sigma8_m:
+        distribution: 'Uniform'
+        low: 0.678
+        high: 0.938
+    n_s:
+        distribution: 'Uniform'
+        low: 0.9012
+        high: 1.025
+    nrun:
+        distribution: 'Uniform'
+        low: -0.038
+        high: 0.038
+
+    N_ur:
+        distribution: 'Uniform'
+        low: 1.188
+        high: 2.889
+
+    w0_fld:
+        distribution: 'Uniform'
+        low: -1.22
+        high: -0.726
+
+    wa_fld:
+        distribution: 'Uniform'
+        low: -0.628
+        high: 0.621
+
+    logM1:
+        distribution: 'Uniform'
+        low: 13.2
+        high: 14.4
+
+    logM_cut:
+        distribution: 'Uniform'
+        low: 12.4
+        high: 13.3
+
+    alpha:
+        distribution: 'Uniform'
+        low: 0.7
+        high: 1.5
+
+    alpha_s:
+        distribution: 'Uniform'
+        low: 0.7
+        high: 1.3
+
+    alpha_c:
+        distribution: 'Uniform'
+        low: 0.
+        high: 0.5
+
+    logsigma:
+        distribution: 'Uniform'
+        low: -3.0
+        high: 0.0
+
+    kappa:
+        distribution: 'Uniform'
+        low: 0.
+        high: 1.5
+
+    B_cen:
+        distribution: 'Uniform'
+        low: -0.5
+        high: 0.5
+
+    B_sat:
+        distribution: 'Uniform'
+        low: -1.
+        high: 1.
