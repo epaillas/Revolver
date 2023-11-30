@@ -35,6 +35,8 @@ class VoxelVoids:
                 self.randoms_weights = np.ones(len(randoms_positions))
             else:
                 self.randoms_weights = randoms_weights
+        else:
+            self.boxsize = np.array([boxsize] * 3) if np.isscalar(boxsize) else boxsize
 
         self.handle = 'tmp' if handle is None else handle
 
@@ -66,8 +68,8 @@ class VoxelVoids:
             alpha = sum_data * 1. / sum_randoms
             self.delta_mesh = self.data_mesh - alpha * self.randoms_mesh
             self.ran_min = ran_min
-            threshold = self.ran_min * sum_randoms / len(self.randoms_positions)
-            mask = self.randoms_mesh > threshold
+            self.ran_min *= sum_randoms / len(self.randoms_positions)
+            mask = self.randoms_mesh > self.ran_min
             self.delta_mesh[mask] /= alpha * self.randoms_mesh[mask]
             self.delta_mesh[~mask] = 0.0
             del self.data_mesh
@@ -85,35 +87,26 @@ class VoxelVoids:
 
     def find_voids(self):
         self.logger.info("Finding voids")
-        self.nbins = int(self.delta_mesh.boxsize[0] / self.cellsize)
-        # write this to file for jozov-grid to read
+        self.nmesh = self.delta_mesh.nmesh
         delta_mesh_flat = np.array(self.delta_mesh, dtype=np.float32)
-        with open(f'{self.handle}_delta_mesh_n{self.nbins}d.dat', 'w') as F:
+        with open(f'{self.handle}_delta_mesh_n{self.nmesh[0]}{self.nmesh[1]}{self.nmesh[2]}d.dat', 'w') as F:
             delta_mesh_flat.tofile(F, format='%f')
-        # now call jozov-grid
         bin_path  = os.path.join(os.path.dirname(__file__), 'c', 'jozov-grid.exe')
-        cmd = [bin_path, "v", f"{self.handle}_delta_mesh_n{self.nbins}d.dat",
-               self.handle, str(self.nbins)]
+        cmd = [bin_path, "v", f"{self.handle}_delta_mesh_n{self.nmesh[0]}{self.nmesh[1]}{self.nmesh[2]}d.dat",
+               self.handle, str(self.nmesh[0]),str(self.nmesh[1]),str(self.nmesh[2])]
         subprocess.call(cmd)
 
     def postprocess_voids(self):
         self.logger.info("Post-processing voids")
-
-        mask_cut = np.zeros(self.nbins**3, dtype='int')
+        mask_cut = np.zeros(self.nmesh[0]*self.nmesh[1]*self.nmesh[2], dtype='int')
         if self.boxsize is None:
             # identify "empty" cells for later cuts on void catalogue
-            mask_cut = np.zeros(self.nbins**3, dtype='int')
+            mask_cut = np.zeros(self.nmesh[0]*self.nmesh[1]*self.nmesh[2], dtype='int')
             fastmodules.survey_mask(mask_cut, self.randoms_mesh.value, self.ran_min)
         self.mask_cut = mask_cut
         self.min_dens_cut = 1.0
 
         rawdata = np.loadtxt(f"{self.handle}.txt", skiprows=2)
-        nvox = self.nbins ** 3
-
-        # load zone membership data
-        # with open(f"{self.handle}.zone", 'r') as F:
-        #     hierarchy = F.readlines()
-        # hierarchy = np.asarray(hierarchy, dtype=str)
 
         # remove voids that: a) don't meet minimum density cut, b) are edge voids, or c) lie in a masked voxel
         select = np.zeros(rawdata.shape[0], dtype='int')
@@ -129,120 +122,62 @@ class VoxelVoids:
         self.logger.info('Calculating void radii')
         vols = (rawdata[:, 5] * self.cellsize ** 3.)
         rads = (3. * vols / (4. * np.pi)) ** (1. / 3)
-        # void minimum densities (as delta)
-        mindens = rawdata[:, 3] - 1.
 
         os.remove(f'{self.handle}.void')
         os.remove(f'{self.handle}.txt')
         os.remove(f'{self.handle}.zone')
-        os.remove(f'{self.handle}_delta_mesh_n{self.nbins}d.dat')
+        os.remove(f'{self.handle}_delta_mesh_n{self.nmesh[0]}{self.nmesh[1]}{self.nmesh[2]}d.dat')
 
         self.logger.info(f"Found a total of {len(rawdata)} voids in {time.time() - self.time:.2f} s.")
         return np.c_[xpos, ypos, zpos], rads
 
+    # def voxel_position(self, voxel):
+    #     xind = np.array(voxel / (self.nmesh ** 2), dtype=int)
+    #     yind = np.array((voxel - xind * self.nmesh ** 2) / self.nmesh, dtype=int)
+    #     zind = np.array(voxel % self.nmesh, dtype=int)
+    #     if self.boxsize is None:
+    #         xpos = xind * self.delta_mesh.boxsize[0] / self.nmesh
+    #         ypos = yind * self.delta_mesh.boxsize[0] / self.nmesh
+    #         zpos = zind * self.delta_mesh.boxsize[0] / self.nmesh
+
+    #         xpos += self.delta_mesh.boxcenter[0] - self.delta_mesh.boxsize[0] / 2.
+    #         ypos += self.delta_mesh.boxcenter[1] - self.delta_mesh.boxsize[1] / 2.
+    #         zpos += self.delta_mesh.boxcenter[2] - self.delta_mesh.boxsize[2] / 2.
+    #     else:
+    #         xpos = xind * self.boxsize / self.nmesh
+    #         ypos = yind * self.boxsize / self.nmesh
+    #         zpos = zind * self.boxsize / self.nmesh
+    #     return xpos, ypos, zpos
+
     def voxel_position(self, voxel):
-        xind = np.array(voxel / (self.nbins ** 2), dtype=int)
-        yind = np.array((voxel - xind * self.nbins ** 2) / self.nbins, dtype=int)
-        zind = np.array(voxel % self.nbins, dtype=int)
+        voxel = voxel.astype('i')
+        all_vox = np.arange(0,self.nmesh[0]*self.nmesh[1]*self.nmesh[2],dtype=int)
+        vind = np.zeros((np.copy(all_vox).shape[0]),dtype=int) 
+        xpos = np.zeros(vind.shape[0],dtype=float)
+        ypos = np.zeros(vind.shape[0],dtype=float)
+        zpos = np.zeros(vind.shape[0],dtype=float)
+        all_vox = np.arange(0,self.nmesh[0]*self.nmesh[1]*self.nmesh[2],dtype = int)
+        xi = np.zeros(self.nmesh[0]*self.nmesh[1]*self.nmesh[2])
+        yi = np.zeros(self.nmesh[1]*self.nmesh[2])
+        zi = np.arange(self.nmesh[2])
         if self.boxsize is None:
-            xpos = xind * self.delta_mesh.boxsize[0] / self.nbins
-            ypos = yind * self.delta_mesh.boxsize[0] / self.nbins
-            zpos = zind * self.delta_mesh.boxsize[0] / self.nbins
-
+            for i in range(self.nmesh[1]):
+                yi[i*(self.nmesh[2]):(i+1)*(self.nmesh[2])] =i
+            for i in range(self.nmesh[0]):
+                xi[i*(self.nmesh[1]*self.nmesh[2]):(i+1)*(self.nmesh[1]*self.nmesh[2])] = i
+            xpos = xi*self.delta_mesh.boxsize[0]/self.nmesh[0]
+            ypos = np.tile(yi,self.nmesh[0])*self.delta_mesh.boxsize[1]/self.nmesh[1]
+            zpos = np.tile(zi,self.nmesh[1]*self.nmesh[0])*self.delta_mesh.boxsize[2]/self.nmesh[2]
             xpos += self.delta_mesh.boxcenter[0] - self.delta_mesh.boxsize[0] / 2.
-            ypos += self.delta_mesh.boxcenter[1] - self.delta_mesh.boxsize[1] / 2.
+            ypos += self.delta_mesh.boxcenter[1] - self.delta_mesh.boxsize[1] / 2.           
             zpos += self.delta_mesh.boxcenter[2] - self.delta_mesh.boxsize[2] / 2.
+            return xpos[voxel],ypos[voxel],zpos[voxel]
         else:
-            xpos = xind * self.boxsize / self.nbins
-            ypos = yind * self.boxsize / self.nbins
-            zpos = zind * self.boxsize / self.nbins
-        return xpos, ypos, zpos
-
-
-# if not self.is_box:  # convert void centre coordinates from box Cartesian to sky positions
-#     xpos += self.xmin
-#     ypos += self.ymin
-#     zpos += self.zmin
-#     dist = np.sqrt(xpos**2 + ypos**2 + zpos**2)
-#     redshift = self.cosmo.get_redshift(dist)
-#     ra = np.degrees(np.arctan2(ypos, xpos))
-#     dec = 90 - np.degrees(np.arccos(zpos / dist))
-#     ra[ra < 0] += 360
-#     xpos = ra
-#     ypos = dec
-#     zpos = redshift
-#     # and an additional cut on any voids with min. dens. centre outside specified redshift range
-#     select_z = np.logical_and(zpos > self.z_min, zpos < self.z_max)
-#     rawdata = rawdata[select_z]
-#     densratio = densratio[select_z]
-#     hierarchy = hierarchy[select_z]
-#     xpos = xpos[select_z]
-#     ypos = ypos[select_z]
-#     zpos = zpos[select_z]
-
-# void average densities and barycentres
-# avgdens = np.zeros(len(rawdata))
-# barycentres = np.zeros((len(rawdata), 3))
-# for i in range(len(rawdata)):
-#     member_voxels = np.fromstring(hierarchy[i], dtype=int, sep=' ')[1:]
-#     member_dens = np.zeros(len(member_voxels), dtype='float64')
-#     fastmodules.get_member_densities(member_dens, member_voxels, self.rhoflat)
-#     # member_dens = self.rhoflat[member_voxels]
-#     avgdens[i] = np.mean(member_dens) - 1.
-#     if self.use_barycentres:
-#         member_x, member_y, member_z = self.voxel_position(member_voxels)
-#         barycentres[i, 0] = np.average(member_x, weights=1. / member_dens)
-#         barycentres[i, 1] = np.average(member_y, weights=1. / member_dens)
-#         barycentres[i, 2] = np.average(member_z, weights=1. / member_dens)
-# if self.use_barycentres and not self.is_box:
-#     barycentres[:, 0] += self.xmin
-#     barycentres[:, 1] += self.ymin
-#     barycentres[:, 2] += self.zmin
-#     dist = np.linalg.norm(barycentres, axis=1)
-#     redshift = self.cosmo.get_redshift(dist)
-#     ra = np.degrees(np.arctan2(barycentres[:, 1], barycentres[:, 0]))
-#     dec = 90 - np.degrees(np.arccos(barycentres[:, 2] / dist))
-#     ra[ra < 0] += 360
-#     barycentres[:, 0] = ra
-#     barycentres[:, 1] = dec
-#     barycentres[:, 2] = redshift
-
-# # record void lambda value, even though usefulness of this has only really been shown for ZOBOV voids so far
-# void_lambda = avgdens * (rads ** 1.2)
-
-# # create output array
-# output = np.zeros((len(rawdata), 9))
-# output[:, 0] = rawdata[:, 0]
-# output[:, 1] = xpos
-# output[:, 2] = ypos
-# output[:, 3] = zpos
-# output[:, 4] = rads
-# output[:, 5] = mindens
-# output[:, 6] = avgdens
-# output[:, 7] = void_lambda
-# output[:, 8] = densratio
-
-# print('Total %d voids pass all cuts' % len(output))
-# sys.stdout.flush()
-
-# # sort in increasing order of minimum density
-# sort_order = np.argsort(output[:, 5])
-# output = output[sort_order]
-# if self.use_barycentres:
-#     barycentres = barycentres[sort_order]
-# # save to file
-# catalogue_file = self.output_folder + self.void_prefix + '_cat.txt'
-# header = '%d voxels, %d voids\n' % (nvox, len(output))
-# if self.is_box:
-#     header += 'VoidID XYZ[3](Mpc/h) R_eff(Mpc/h) delta_min delta_avg lambda_v DensRatio'
-# else:
-#     header += 'VoidID RA Dec z R_eff(Mpc/h) delta_min delta_avg lambda_v DensRatio'
-# np.savetxt(catalogue_file, output, fmt='%d %0.4f %0.4f %0.4f %0.4f %0.6f %0.6f %0.6f %0.6f', header=header)
-
-# if self.use_barycentres:
-#     if not os.access(self.output_folder + "barycentres/", os.F_OK):
-#         os.makedirs(self.output_folder + "barycentres/")
-#     catalogue_file = self.output_folder + 'barycentres/' + self.void_prefix + '_baryC_cat.txt'
-#     output[:, 1:4] = barycentres
-#     np.savetxt(catalogue_file, output, fmt='%d %0.4f %0.4f %0.4f %0.4f %0.6f %0.6f %0.6f %0.6f',
-#                header=header)
+            for i in range(self.nmesh[1]):
+                yi[i*(self.nmesh[2]):(i+1)*(self.nmesh[2])] =i
+            for i in range(self.nmesh[0]):
+                xi[i*(self.nmesh[1]*self.nmesh[2]):(i+1)*(self.nmesh[1]*self.nmesh[2])] = i
+            xpos = xi*self.boxsize[0]/self.nmesh[0]
+            ypos = np.tile(yi,self.nmesh[0])*self.boxsize[1]/self.nmesh[1]
+            zpos = np.tile(zi,self.nmesh[1]*self.nmesh[0])*self.boxsize[2]/self.nmesh[2]
+            return xpos[voxel],ypos[voxel],zpos[voxel]

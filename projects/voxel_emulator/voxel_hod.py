@@ -112,7 +112,7 @@ def get_data_positions(filename):
     return data_positions
 
 def get_voids_positions(data_positions, boxsize, cellsize, boxcenter=None, handle=None,
-    wrap=True, boxpad=1.0, smoothing_radius=10, return_radii=False, nthreads=1):
+    wrap=True, boxpad=1.0, smoothing_radius=10, return_radii=False, nthreads=1,):
     boxcenter = boxsize / 2 if boxcenter is None else boxcenter
     voxel = VoxelVoids(
         handle=handle,
@@ -143,6 +143,7 @@ if __name__ == '__main__':
     parser.add_argument("--nthreads", type=int, default=1)
     parser.add_argument("--save_voids", action='store_true')
     parser.add_argument("--save_mocks", action='store_true')
+    parser.add_argument("--ap_model", type=str, choices=['full', 'xi'], default='full')
 
     args = parser.parse_args()
     start_hod = args.start_hod
@@ -162,9 +163,9 @@ if __name__ == '__main__':
     edges = (redges, muedges)
 
     # HOD configuration
-    dataset = 'voidprior'
+    dataset = 'fullap'
     config_dir = './'
-    config_fn = Path(config_dir, f'hod_config_{dataset}.yaml')
+    config_fn = Path(config_dir, f'hod_config.yaml')
     config = yaml.safe_load(open(config_fn))
 
     # baseline AbacusSummit cosmology as our fiducial
@@ -220,23 +221,38 @@ if __name__ == '__main__':
 
                     data_positions_ap = get_distorted_positions(positions=data_positions, los=los,
                                                                 q_perp=q_perp, q_para=q_para)
-                    boxsize_ap = get_distorted_box(boxsize=boxsize, q_perp=q_perp, q_para=q_para,
-                                                   los=los)
+                    boxsize_ap = np.array(get_distorted_box(boxsize=boxsize, q_perp=q_perp, q_para=q_para,
+                                                   los=los))
 
                     # Run the Voxel void finder
-                    handle = f'/pscratch/sd/e/epaillas/tmp/voxel_c{cosmo:03}_ph{phase:03}_hod{hod}_los{los}'
+                    handle = f'/pscratch/sd/e/epaillas/tmp/voxel2_c{cosmo:03}_ph{phase:03}_hod{hod}_los{los}'
 
-                    voids_positions, voids_radii = get_voids_positions(
-                        handle=handle,
-                        data_positions=data_positions,
-                        boxsize=boxsize,
-                        wrap=True,
-                        boxpad=1.0,
-                        cellsize=cellsize,
-                        smoothing_radius=smoothing_radius,
-                        return_radii=True,
-                        nthreads=args.nthreads
-                    )
+                    if args.ap_model == 'full':
+                        voids_positions_ap, voids_radii = get_voids_positions(
+                            handle=handle,
+                            data_positions=data_positions_ap,
+                            boxsize=boxsize_ap,
+                            wrap=True,
+                            boxpad=1.0,
+                            cellsize=cellsize,
+                            smoothing_radius=smoothing_radius,
+                            return_radii=True,
+                            nthreads=args.nthreads
+                        )
+                    else:
+                        voids_positions, voids_radii = get_voids_positions(
+                            handle=handle,
+                            data_positions=data_positions,
+                            boxsize=boxsize,
+                            wrap=True,
+                            boxpad=1.0,
+                            cellsize=cellsize,
+                            smoothing_radius=smoothing_radius,
+                            return_radii=True,
+                            nthreads=args.nthreads
+                        )
+                        voids_positions_ap = get_distorted_positions(positions=voids_positions, los=los,
+                                                                    q_perp=q_perp, q_para=q_para)
 
                     if args.save_voids:
                         cout = {
@@ -252,16 +268,11 @@ if __name__ == '__main__':
                         )
                         np.save(output_fn, cout)
 
-                    # rescale void positions with AP parameters to compute clustering
-                    voids_positions_ap = get_distorted_positions(positions=voids_positions, los=los,
-                                                                q_perp=q_perp, q_para=q_para)
-
-                    # Compute void-galaxy correlation function
                     result = TwoPointCorrelationFunction(
-                        mode='smu', edges=edges, data_positions1=data_positions_ap,
-                        data_positions2=voids_positions_ap, estimator='auto', boxsize=boxsize_ap,
-                        nthreads=4, compute_sepsavg=False, position_type='pos', los=los,
-                        gpu=True,
+                        mode='smu', edges=edges, data_positions2=data_positions_ap,
+                        data_positions1=voids_positions_ap, boxsize=boxsize_ap,
+                        estimator='auto', nthreads=4, compute_sepsavg=False, position_type='pos',
+                        gpu=True, los=los,
                     )
 
                     output_dir = Path(f'/pscratch/sd/e/epaillas/voxel_emulator/voxel_multipoles/HOD/{dataset}/',
