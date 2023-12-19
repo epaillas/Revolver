@@ -33,7 +33,7 @@ labels = {
     "B_sat": r"B_{\rm sat}",
     "fsigma8": r"f \sigma_8",
     "Omega_m": r"\Omega_{\rm m}",
-    "H0": r"H_0",
+    "h": r"h",
 }
 
 
@@ -55,8 +55,8 @@ def read_dynesty_chain(filename, add_fsigma8=False, redshift=0.525):
             wa_fld = np.ones_like(data['omega_b'].to_numpy()) * 0.0,
             z=redshift,
         )
-        param_names.append("H0")
-        data['H0'] = growth.get_emulated_h(
+        param_names.append("h")
+        data['h'] = growth.get_emulated_h(
             omega_b = data['omega_b'].to_numpy(),
             omega_cdm = data['omega_cdm'].to_numpy(),
             sigma8 = data['sigma8_m'].to_numpy(),
@@ -64,12 +64,12 @@ def read_dynesty_chain(filename, add_fsigma8=False, redshift=0.525):
             N_ur = np.ones_like(data['omega_b'].to_numpy()) * 2.0328,
             w0_fld = np.ones_like(data['omega_b'].to_numpy()) * -1.0,
             wa_fld = np.ones_like(data['omega_b'].to_numpy()) * 0.0,
-        ) * 100
+        )
         param_names.append("Omega_m")
         data['Omega_m'] = growth.Omega_m0(
             data['omega_cdm'],
             data['omega_b'],
-            data['H0'] / 100,
+            data['h'],
         )
     data = data.to_numpy()
     chain = data[:, 4:]
@@ -77,7 +77,7 @@ def read_dynesty_chain(filename, add_fsigma8=False, redshift=0.525):
     weights = np.exp(data[:, 1] - data[-1, 2])
     return param_names, chain, weights, loglikes
 
-def read_hmc_chain(filename, add_fsigma8=False, redshift=0.525):
+def read_hmc_chain(filename, add_fsigma8=False, redshift=0.525,):
     data = pd.read_csv(filename)
     param_names = list(data.columns)
     if add_fsigma8:
@@ -90,29 +90,29 @@ def read_hmc_chain(filename, add_fsigma8=False, redshift=0.525):
             omega_cdm = data['omega_cdm'].to_numpy(),
             sigma8 = data['sigma8_m'].to_numpy(),
             n_s = data['n_s'].to_numpy(),
-            N_ur = np.ones_like(data['omega_b'].to_numpy()) * 2.0328,
-            w0_fld = np.ones_like(data['omega_b'].to_numpy()) * -1.0,
-            wa_fld = np.ones_like(data['omega_b'].to_numpy()) * 0.0,
+            N_ur = np.ones_like(data['omega_b'].to_numpy()) * truth['N_ur'],
+            w0_fld = np.ones_like(data['omega_b'].to_numpy()) * truth['w0_fld'],
+            wa_fld = np.ones_like(data['omega_b'].to_numpy()) * truth['wa_fld'],
             z=redshift,
         )
-        param_names.append("H0")
-        data['H0'] = growth.get_emulated_h(
+        param_names.append("h")
+        data['h'] = growth.get_emulated_h(
             omega_b = data['omega_b'].to_numpy(),
             omega_cdm = data['omega_cdm'].to_numpy(),
             sigma8 = data['sigma8_m'].to_numpy(),
             n_s = data['n_s'].to_numpy(),
-            N_ur = np.ones_like(data['omega_b'].to_numpy()) * 2.0328,
-            w0_fld = np.ones_like(data['omega_b'].to_numpy()) * -1.0,
-            wa_fld = np.ones_like(data['omega_b'].to_numpy()) * 0.0,
-        ) * 100
+            N_ur = np.ones_like(data['omega_b'].to_numpy()) * truth['N_ur'],
+            w0_fld = np.ones_like(data['omega_b'].to_numpy()) * truth['w0_fld'],
+            wa_fld = np.ones_like(data['omega_b'].to_numpy()) * truth['wa_fld'],
+        )
         param_names.append("Omega_m")
         data['Omega_m'] = growth.Omega_m0(
             data['omega_cdm'],
             data['omega_b'],
-            data['H0'] / 100,
+            data['h'],
         )
     data = data.to_numpy()
-    return param_names, data, None
+    return param_names, data, None, None
 
 def get_MCSamples(filename, add_fsigma8=False, redshift=0.525, hmc=True,):
     priors = {
@@ -135,7 +135,7 @@ def get_MCSamples(filename, add_fsigma8=False, redshift=0.525, hmc=True,):
         "B_sat": [-1.0, 1.0],
     }
     if hmc:
-        names, chain, weights = read_hmc_chain(
+        names, chain, weights, loglikes = read_hmc_chain(
             filename,
             add_fsigma8=add_fsigma8,
             redshift=redshift,
@@ -176,8 +176,9 @@ def get_true_params(
 
 
 args  = argparse.ArgumentParser()
-args.add_argument('--chain_dir', type=str, default='/pscratch/sd/e/epaillas/sunbird/chains/enrique')
+args.add_argument('--chain_dir', type=str, default='/pscratch/sd/e/epaillas/sunbird/chains/voxel_voids_fullap')
 args.add_argument('--param_space', type=str, default='cosmo')
+args.add_argument('--cosmology', type=int, default=0)
 args = args.parse_args()
 
 chain_dir = Path(args.chain_dir)
@@ -189,44 +190,40 @@ growth = Growth(emulate=True,)
 param_space = 'base_bbn'
 
 chain_handles = [
-    'abacus_c0_voxel_voids_mae_patchycov_vol64_smin0.70_smax120.00_m02_base',
+    f'abacus_c{args.cosmology}_voxel_voids_mae_abacuscov_vol64_smin0.70_smax120.00_m02',
 ]
 chain_labels = [
     'voxel voids',
-    # 'voxel voids c4',
-    # 'galaxy 2PCF 2',
-    # 'density-split + galaxy 2PCF',
-    # r'Planck TT,TE,EE+lowl+lowE+lensing',
 ]
 
 
 if args.param_space == 'cosmo':
     params_toplot = [
-        'omega_cdm', 'sigma8_m', 'n_s',# 'fsigma8', 'Omega_m', 'H0',
+        'omega_cdm', 'sigma8_m', 'n_s', 'fsigma8', 'Omega_m', 'h',
         # 'nrun', 'N_ur', 'w0_fld', 'wa_fld',
         # 'logM_cut', 'logM1', 'alpha',
         # 'logsigma', 'kappa',
     ]
 
-truth = get_true_params(0, 80, add_fsigma8=False, redshift=redshift)
+truth = get_true_params(args.cosmology, 80, add_fsigma8=True, redshift=redshift)
+truth['omega_ncdm'] = 0.00064420
+if args.cosmology == 0:
+    truth['h'] = 0.6736
+elif args.cosmology == 3:
+    truth['h'] = 0.7160
+
+truth['Omega_m'] = (truth['omega_cdm'] + truth['omega_b'] + truth['omega_ncdm']) / truth['h'] ** 2
 
 samples_list = []
 
 for i in range(len(chain_handles)):
     chain_fn = chain_dir / chain_handles[i] / 'results.csv'
     print(chain_fn)
-    # chain, weights, loglikes = read_dynesty_chain(chain_fn)
-    # samples = MCSamples(samples=chain, weights=weights, labels=labels,
-                        # names=names, ranges=priors, loglikes=loglikes,)
-    hmc = True if 'hmc' in str(chain_fn) else False
-    samples, names = get_MCSamples(chain_fn, hmc=hmc, add_fsigma8=True)
+    hmc = True
+    samples, names = get_MCSamples(chain_fn, hmc=hmc, add_fsigma8=True,)
     samples_list.append(samples)
     print(samples.getLikeStats())
     print(chain_labels[i])
-    print('Maximum likelihood:')
-    print([f'{name} {samples[name][-1]:.4f}' for name in names])
-    print('Standard deviation / mean:')
-    print([f'{name} {samples.std(name) / samples.mean(name) * 100:.1f}' for name in names])
     print(samples.getTable(limit=1).tableTex())
 
 samples_planck_boss = loadMCSamples('/global/cfs/cdirs/desi/users/plemos/planck/chains/base/plikHM_TTTEEE_lowl_lowE_lensing/base_plikHM_TTTEEE_lowl_lowE_lensing', settings={'ignore_rows': 0.3})
@@ -272,10 +269,10 @@ g.triangle_plot(
     legend_labels=chain_labels,
     legend_loc='upper right',
     title_limit=1,
-    param_limits=param_limits,
+    # param_limits=param_limits,
     markers=truth,
 )
 # plt.show()
 output_fn = f'{args.param_space}_inference_abacus_voxel_voids_c0.png'
-plt.savefig(output_fn, bbox_inches='tight', dpi=300)
+# plt.savefig(output_fn, bbox_inches='tight', dpi=300)
 plt.show()
